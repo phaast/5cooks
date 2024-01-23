@@ -2,7 +2,7 @@
 #include <mutex>
 #include <chrono>
 #include <condition_variable>
-#include <numeric>
+#include <numeric> 
 #include <vector>
 
 using namespace std;
@@ -22,30 +22,25 @@ class Table{
     mutex tableMutex;
     condition_variable table_full, table_empty;
 public:
-    void prepare_dish(int id){
+    void place_dish(int id, int weight){
         //Getting exclusive access to the table's resources
         unique_lock<mutex> lock(tableMutex);
-        printf("Cook%d is cooking something...\n", id);
 
         //Counting table load
         auto current_weight = reduce(begin(tableVector), end(tableVector));
         int current_portions = tableVector.size();
 
-        //Preparing food... mmmmmmmmmmmm...
-        int dish_weight = rand() % MAX_FOOD_WEIGHT + 1;
-        this_thread::sleep_for(chrono::milliseconds(dish_weight*300));
-
         //Waiting until there is space on the table
         while(current_portions >= MAX_TABLE_PORTIONS
-        || (current_weight + dish_weight) > MAX_TABLE_WEIGHT){
+        || (current_weight + weight) > MAX_TABLE_WEIGHT){
             table_full.wait(lock);
             current_weight = reduce(begin(tableVector), end(tableVector));
         }
-
+            
         //PLACE THE DISH!!!!
-        tableVector.push_back(dish_weight);
+        tableVector.push_back(weight);
         printf("Cook%d just delivered a dish! It weights %d units!\nCurrent load: W=%d P=%d\n",
-        id, dish_weight, current_weight+dish_weight, current_portions+1);
+        id, weight, current_weight+weight, current_portions+1);
 
         //The table is not empty notification
         table_empty.notify_all();
@@ -55,7 +50,7 @@ public:
         unique_lock<mutex> lock(tableMutex);
 
         printf("Cook%d wants to eat!\n", id);
-        //wanted to try this in the upper method,
+        //wanted to try this in the upper method, 
         //but it doesnt seem to work for more than one condition
         table_empty.wait(lock, [&]() { return !tableVector.empty(); });
 
@@ -94,11 +89,17 @@ void cook_thread(int id){
         forks[right_fork].lock();
 
         //simulating dish preparation
-        table.prepare_dish(id);
+        printf("Cook%d is cooking something...\n", id);
+        int dish_weight = rand() % MAX_FOOD_WEIGHT + 1;
+        this_thread::sleep_for(chrono::milliseconds(dish_weight*300));
+
+        printf("Cook%d just finished cooking. Looking for some space on the table...\n", id);
 
         // Putting forks down
         forks[left_fork].unlock();
         forks[right_fork].unlock();
+
+        table.place_dish(id, dish_weight);
 
         std::this_thread::yield();
 
